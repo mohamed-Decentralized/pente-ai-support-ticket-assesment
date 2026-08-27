@@ -29,7 +29,7 @@ curl -X POST http://localhost:4000/api/v1/public/tickets/TKT-1001/replies \
 ```bash
 curl -c cookies.txt -X POST http://localhost:4000/api/v1/auth/login \
   -H 'Content-Type: application/json' \
-  -d '{"email":"agent@pente.ai","password":"PenteDemo123!"}'
+  -d '{"email":"bob@pente.ai","password":"PenteDemo123!"}'
 ```
 
 Copy `accessToken` from the response into `ACCESS_TOKEN` for protected examples.
