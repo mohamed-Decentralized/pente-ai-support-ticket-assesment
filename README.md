@@ -227,9 +227,7 @@ docker build -f apps/web/Dockerfile -t pente-web:local .
 ## Submission support
 
 - ADR: [docs/adr.md](docs/adr.md)
-- Pull-request draft and self-review prompts: [docs/pr-description.md](docs/pr-description.md)
-- Maximum six-minute demo plan: [docs/demo-script.md](docs/demo-script.md)
-- Final evidence checklist: [docs/submission-checklist.md](docs/submission-checklist.md)
+
 
 ## Verified screenshots
 
