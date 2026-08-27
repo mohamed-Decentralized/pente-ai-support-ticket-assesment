@@ -4,6 +4,7 @@ import { TicketView } from '@pente/shared';
 import { FormEvent, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { StatusBadge } from '../../../components/ticket-ui';
+import { FieldError, validationAttributes } from '../../../components/field-error';
 import { ApiError } from '../../../lib/api';
 import { apiClient } from '../../../lib/api-client';
 
@@ -12,6 +13,7 @@ export default function CustomerTicketPage() {
   const router = useRouter();
   const [ticket, setTicket] = useState<TicketView | null>(null);
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [sending, setSending] = useState(false);
 
   const load = async () => {
@@ -38,6 +40,7 @@ export default function CustomerTicketPage() {
     if (!email) return;
     setSending(true);
     setError('');
+    setFieldErrors({});
     try {
       const data = new FormData(form);
       setTicket(
@@ -45,7 +48,16 @@ export default function CustomerTicketPage() {
       );
       form.reset();
     } catch (caught) {
-      setError(caught instanceof ApiError ? caught.message : 'Could not send your reply.');
+      if (caught instanceof ApiError) {
+        if (caught.details?.fieldErrors) {
+          setFieldErrors(caught.details.fieldErrors);
+          setError('Please check the form for errors.');
+        } else {
+          setError(caught.message);
+        }
+      } else {
+        setError('Could not send your reply.');
+      }
     } finally {
       setSending(false);
     }
@@ -98,7 +110,14 @@ export default function CustomerTicketPage() {
         <form className="replyForm" onSubmit={reply}>
           <label>
             Your reply
-            <textarea name="message" required maxLength={5000} rows={4} />
+            <textarea
+              name="message"
+              required
+              maxLength={5000}
+              rows={4}
+              {...validationAttributes('err-message', fieldErrors.message)}
+            />
+            <FieldError id="err-message" message={fieldErrors.message} />
           </label>
           {error && <div className="errorPanel">{error}</div>}
           <button className="button primary" disabled={sending}>

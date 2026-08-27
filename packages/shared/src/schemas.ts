@@ -2,17 +2,29 @@ import { z } from 'zod';
 import { TicketPriority, TicketStatus } from './constants';
 
 export const emailSchema = z
-  .string()
+  .string({ required_error: 'Enter a valid email address.' })
   .trim()
-  .email()
+  .email({ message: 'Enter a valid email address.' })
   .max(254)
   .transform((value) => value.toLowerCase());
 
 export const publicTicketCreateSchema = z.object({
-  customerName: z.string().trim().min(2).max(100),
+  customerName: z
+    .string()
+    .trim()
+    .min(2, { message: 'Full name must contain at least 2 characters.' })
+    .max(100),
   customerEmail: emailSchema,
-  subject: z.string().trim().min(3).max(160),
-  description: z.string().trim().min(10).max(5000),
+  subject: z
+    .string()
+    .trim()
+    .min(3, { message: 'Subject must contain at least 3 characters.' })
+    .max(160),
+  description: z
+    .string()
+    .trim()
+    .min(10, { message: 'Description must contain at least 10 characters.' })
+    .max(5000),
 });
 
 export const publicLookupSchema = z.object({
@@ -27,16 +39,16 @@ export const customerTicketAccessSchema = z.object({
 
 export const customerReplySchema = z.object({
   email: emailSchema,
-  message: z.string().trim().min(1).max(5000),
+  message: z.string().trim().min(1, { message: 'Reply cannot be empty.' }).max(5000),
 });
 
 export const staffReplySchema = z.object({
-  message: z.string().trim().min(1).max(5000),
+  message: z.string().trim().min(1, { message: 'Reply cannot be empty.' }).max(5000),
 });
 
 export const loginSchema = z.object({
   email: emailSchema,
-  password: z.string().min(8).max(128),
+  password: z.string().min(8, { message: 'Password must contain at least 8 characters.' }).max(128),
 });
 
 export const ticketStatusSchema = z.object({

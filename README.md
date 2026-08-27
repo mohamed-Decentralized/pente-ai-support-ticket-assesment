@@ -37,7 +37,7 @@ The complete decision record is [docs/adr.md](docs/adr.md).
 - Redis caching for overview, agent-performance, and trend aggregations with an in-memory availability fallback
 - More than 30 automated tests with no real AI or other paid service calls
 - Three multi-stage Dockerfiles, Docker Compose, and pull-request CI
-- Seed data, Postman collection, cURL examples, demo plan, and submission checklist
+- Seed data, Postman collection, and cURL examples
 
 ## Prerequisites
 
