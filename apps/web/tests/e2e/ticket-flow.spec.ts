@@ -102,6 +102,7 @@ test('Complete Ticket Lifecycle', async ({ page }) => {
     await expect(
       page.locator('text=Customer cannot login, encountering invalid password error.'),
     ).toBeVisible();
+    await page.click('button:has-text("Close")');
 
     await page.fill(
       'textarea[name="message"]',
