@@ -1,0 +1,103 @@
+name: pente-support
+services:
+  mongodb:
+    image: mongo:8.0
+    restart: unless-stopped
+    ports:
+      - '27017:27017'
+    volumes:
+      - mongodb_data:/data/db
+    healthcheck:
+      test: ['CMD', 'mongosh', '--quiet', '--eval', "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      MONGODB_URI: mongodb://mongodb:27017/pente_support
+      API_PORT: 4000
+      WEB_ORIGIN: http://localhost:3000
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-local-access-secret-replace-before-production}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-local-refresh-secret-replace-before-production}
+      JWT_ACCESS_EXPIRY: ${JWT_ACCESS_EXPIRY:-15m}
+      JWT_REFRESH_EXPIRY_DAYS: ${JWT_REFRESH_EXPIRY_DAYS:-7}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.6-flash}
+      GEMINI_BASE_URL: ${GEMINI_BASE_URL:-https://generativelanguage.googleapis.com/v1beta}
+      AI_TIMEOUT_MS: ${AI_TIMEOUT_MS:-8000}
+      AI_PROVIDER: ${AI_PROVIDER:-gemini}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    ports:
+      - '4000:4000'
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://localhost:4000/health/readiness']
+      interval: 10s
+      timeout: 4s
+      retries: 10
+
+  reporting:
+    build:
+      context: .
+      dockerfile: services/reporting/Dockerfile
+    restart: unless-stopped
+    environment:
+      MONGODB_URI: mongodb://mongodb:27017/pente_support
+      REPORTING_PORT: 5001
+      WEB_ORIGIN: http://localhost:3000
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-local-access-secret-replace-before-production}
+      REPORT_CACHE_TTL_MS: ${REPORT_CACHE_TTL_MS:-60000}
+      REPORT_AGENTS_CACHE_TTL_MS: ${REPORT_AGENTS_CACHE_TTL_MS:-120000}
+      REPORT_TRENDS_CACHE_TTL_MS: ${REPORT_TRENDS_CACHE_TTL_MS:-300000}
+      REDIS_URL: redis://redis:6379
+      SLA_APPROACHING_MINUTES: ${SLA_APPROACHING_MINUTES:-60}
+    ports:
+      - '5001:5001'
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://localhost:5001/health/readiness']
+      interval: 10s
+      timeout: 4s
+      retries: 10
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:4000/api/v1
+        NEXT_PUBLIC_REPORTING_URL: http://localhost:5001
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
+    depends_on:
+      api:
+        condition: service_healthy
+      reporting:
+        condition: service_healthy
+
+volumes:
+  mongodb_data:

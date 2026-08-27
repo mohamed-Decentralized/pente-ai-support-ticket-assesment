@@ -1,0 +1,61 @@
+name: Pull Request Validation
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      mongodb:
+        image: mongo:7.0
+        ports:
+          - 27017:27017
+      redis:
+        image: redis:7.2-alpine
+        ports:
+          - 6379:6379
+    env:
+      MONGODB_URI: mongodb://localhost:27017/pente_e2e
+      REDIS_URL: redis://localhost:6379
+      JWT_SECRET: super_secret_test_key_123
+      SESSION_SECRET: test_session_secret
+      GEMINI_API_KEY: fake-key
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm format:check
+      - name: Run linting
+        run: pnpm lint
+
+      - name: Security scan
+        run: pnpm audit --prod
+
+      - name: Build packages and apps
+        run: pnpm build
+
+      - name: Run unit/integration tests
+        run: pnpm test
+
+      - name: Install Playwright Browsers
+        run: npx playwright install --with-deps
+
+      - name: Run E2E tests
+        run: pnpm test:e2e
+      - run: docker build -f apps/api/Dockerfile -t pente-api:ci .
+      - run: docker build -f services/reporting/Dockerfile -t pente-reporting:ci .
+      - run: docker build -f apps/web/Dockerfile -t pente-web:ci .
