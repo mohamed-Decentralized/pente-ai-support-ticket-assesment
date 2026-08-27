@@ -1,0 +1,25 @@
+{
+  "name": "pente-support-platform",
+  "version": "1.0.0",
+  "private": true,
+  "packageManager": "pnpm@9.15.5",
+  "scripts": {
+    "build": "pnpm --filter @pente/shared build && pnpm --filter @pente/api build && pnpm --filter @pente/reporting build && pnpm --filter @pente/web build",
+    "dev": "pnpm --filter @pente/shared build && pnpm --parallel --stream --filter @pente/api --filter @pente/reporting --filter @pente/web dev",
+    "lint": "eslint .",
+    "test": "pnpm --filter @pente/shared build && pnpm --filter @pente/api test && pnpm --filter @pente/reporting test",
+    "test:coverage": "pnpm --filter @pente/shared build && pnpm --filter @pente/api test:coverage && pnpm --filter @pente/reporting test:coverage",
+    "test:e2e": "pnpm --filter @pente/web test:e2e",
+    "seed": "pnpm --filter @pente/shared build && pnpm --filter @pente/api seed",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.20.0",
+    "eslint": "^9.20.0",
+    "globals": "^15.15.0",
+    "prettier": "^3.5.0",
+    "typescript": "^5.7.3",
+    "typescript-eslint": "^8.24.0"
+  }
+}
