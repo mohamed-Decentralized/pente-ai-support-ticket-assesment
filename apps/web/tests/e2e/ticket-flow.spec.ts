@@ -102,12 +102,19 @@ test('Complete Ticket Lifecycle', async ({ page }) => {
     await expect(
       page.locator('text=Customer cannot login, encountering invalid password error.'),
     ).toBeVisible();
+    // Close the AI modal so the underlying page is interactive again
+    await page.click('button:has-text("Close")');
+    await expect(
+      page.locator('text=Customer cannot login, encountering invalid password error.'),
+    ).toBeHidden();
 
     await page.fill(
       'textarea[name="message"]',
       'Hello, I have reset your password. Please check your email.',
     );
     await page.click('button:has-text("Send reply")');
+    // Wait for the form to reset — confirms submission was successful before continuing
+    await expect(page.locator('textarea[name="message"]')).toHaveValue('');
 
     // Change status to Waiting for Customer using the select
     await page.locator('label:has-text("Status") select').selectOption('Waiting for Customer');
