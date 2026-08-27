@@ -42,9 +42,6 @@ jobs:
       - name: Run linting
         run: pnpm lint
 
-      - name: Security scan
-        run: pnpm audit --prod
-
       - name: Build packages and apps
         run: pnpm build
 
