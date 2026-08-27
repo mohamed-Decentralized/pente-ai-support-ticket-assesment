@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pente-api-config
+  labels:
+    app: pente-api
+data:
+  NODE_ENV: 'production'
+  PORT: '8080'
+  WEB_ORIGIN: 'http://localhost:3000'
+  JWT_ACCESS_EXPIRY: '15m'
+  JWT_REFRESH_EXPIRY_DAYS: '7'
+  AI_TIMEOUT_MS: '10000'
+  GEMINI_MODEL: 'gemini-3.6-flash'
+  GEMINI_BASE_URL: 'https://generativelanguage.googleapis.com/v1beta'
