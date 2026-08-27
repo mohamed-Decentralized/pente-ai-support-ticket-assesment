@@ -1,0 +1,236 @@
+{
+  "info": {
+    "name": "Pente Support Platform",
+    "description": "Public, staff, AI, and reporting requests for the Pente assessment.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "apiUrl", "value": "http://localhost:4000/api/v1" },
+    { "key": "reportingUrl", "value": "http://localhost:5001" },
+    { "key": "ticketNumber", "value": "TKT-1001" },
+    { "key": "customerEmail", "value": "alice@example.com" },
+    { "key": "accessToken", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Public",
+      "item": [
+        {
+          "name": "Create ticket",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"customerName\":\"Alice Customer\",\"customerEmail\":\"{{customerEmail}}\",\"subject\":\"Payment failed\",\"description\":\"My payment failed but the amount was deducted.\"}"
+            },
+            "url": "{{apiUrl}}/public/tickets"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body.ticketNumber) pm.collectionVariables.set('ticketNumber', body.ticketNumber);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Email lookup",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"email\":\"{{customerEmail}}\",\"page\":1,\"limit\":10}"
+            },
+            "url": "{{apiUrl}}/public/tickets/lookup"
+          }
+        },
+        {
+          "name": "Customer details",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"email\":\"{{customerEmail}}\"}" },
+            "url": "{{apiUrl}}/public/tickets/{{ticketNumber}}/details"
+          }
+        },
+        {
+          "name": "Customer reply",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"email\":\"{{customerEmail}}\",\"message\":\"The transaction reference is TX-42.\"}"
+            },
+            "url": "{{apiUrl}}/public/tickets/{{ticketNumber}}/replies"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Agent login",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"email\":\"agent@pente.ai\",\"password\":\"PenteDemo123!\"}"
+            },
+            "url": "{{apiUrl}}/auth/login"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body.accessToken) pm.collectionVariables.set('accessToken', body.accessToken);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Admin login",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"email\":\"admin@pente.ai\",\"password\":\"PenteDemo123!\"}"
+            },
+            "url": "{{apiUrl}}/auth/login"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body.accessToken) pm.collectionVariables.set('accessToken', body.accessToken);"
+                ]
+              }
+            }
+          ]
+        },
+        { "name": "Refresh", "request": { "method": "POST", "url": "{{apiUrl}}/auth/refresh" } },
+        { "name": "Logout", "request": { "method": "POST", "url": "{{apiUrl}}/auth/logout" } }
+      ]
+    },
+    {
+      "name": "Staff tickets",
+      "auth": {
+        "type": "bearer",
+        "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }]
+      },
+      "item": [
+        {
+          "name": "Dashboard cards",
+          "request": { "method": "GET", "url": "{{apiUrl}}/tickets/dashboard" }
+        },
+        {
+          "name": "Filtered ticket list",
+          "request": { "method": "GET", "url": "{{apiUrl}}/tickets?page=1&limit=20&status=Open" }
+        },
+        {
+          "name": "Ticket details",
+          "request": { "method": "GET", "url": "{{apiUrl}}/tickets/{{ticketNumber}}" }
+        },
+        {
+          "name": "Change status",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"status\":\"In Progress\"}" },
+            "url": "{{apiUrl}}/tickets/{{ticketNumber}}/status"
+          }
+        },
+        {
+          "name": "Assign ticket",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"assignedTo\":\"agent@pente.ai\"}" },
+            "url": "{{apiUrl}}/tickets/{{ticketNumber}}/assignment"
+          }
+        },
+        {
+          "name": "Staff reply",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"message\":\"We are reviewing the transaction.\"}" },
+            "url": "{{apiUrl}}/tickets/{{ticketNumber}}/replies"
+          }
+        },
+        {
+          "name": "AI summary",
+          "request": { "method": "POST", "url": "{{apiUrl}}/tickets/{{ticketNumber}}/ai/summary" }
+        },
+        {
+          "name": "AI triage",
+          "request": { "method": "POST", "url": "{{apiUrl}}/tickets/{{ticketNumber}}/ai/triage" }
+        },
+        {
+          "name": "Confirm AI triage",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"accepted\":true}" },
+            "url": "{{apiUrl}}/tickets/{{ticketNumber}}/ai/triage/review"
+          }
+        },
+        {
+          "name": "Admin delete",
+          "request": { "method": "DELETE", "url": "{{apiUrl}}/tickets/{{ticketNumber}}" }
+        }
+      ]
+    },
+    {
+      "name": "Reporting",
+      "auth": {
+        "type": "bearer",
+        "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }]
+      },
+      "item": [
+        {
+          "name": "Overview",
+          "request": { "method": "GET", "url": "{{reportingUrl}}/reports/overview" }
+        },
+        {
+          "name": "Agents",
+          "request": { "method": "GET", "url": "{{reportingUrl}}/reports/agents" }
+        },
+        {
+          "name": "SLA breaches",
+          "request": { "method": "GET", "url": "{{reportingUrl}}/reports/sla-breaches" }
+        },
+        {
+          "name": "Trends",
+          "request": { "method": "GET", "url": "{{reportingUrl}}/reports/trends?days=7" }
+        },
+        {
+          "name": "Webhook preview",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"externalId\":\"external-123\",\"customer\":{\"name\":\"Alice Customer\",\"email\":\"alice@example.com\"},\"subject\":\"Account access failed\",\"description\":\"The customer cannot access their paid account.\",\"urgency\":\"high\"}"
+            },
+            "url": "{{reportingUrl}}/reports/webhook-preview"
+          }
+        }
+      ]
+    }
+  ]
+}
