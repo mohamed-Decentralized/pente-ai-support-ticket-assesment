@@ -228,7 +228,6 @@ docker build -f apps/web/Dockerfile -t pente-web:local .
 
 - ADR: [docs/adr.md](docs/adr.md)
 
-
 ## Verified screenshots
 
 | Journey                                       | Evidence                                                      |
