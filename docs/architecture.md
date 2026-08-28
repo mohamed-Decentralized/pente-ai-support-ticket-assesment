@@ -1,7 +1,7 @@
 # Pente Support Platform - Detailed Architecture
 
 - **Companion decision record:** [ADR 001](adr.md)
-- **Last reviewed:** 2026-08-28
+- **Last reviewed:** 2026-08-26
 - **Scope:** Web application, core API, reporting service, data stores, AI integration, security boundaries, runtime flows, and deployment model
 
 ## 1. Context and decision drivers
