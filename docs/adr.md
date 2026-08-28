@@ -1,47 +1,95 @@
 # ADR 001: Pente Support Platform Architecture
 
-Status: Accepted
-
-Date: 2026-08-26
+- **Status:** Accepted
+- **Date:** 2026-08-26
+- **Decision owners:** Full-stack engineering
+- **Detailed reference:** [Pente Support Platform - Detailed Architecture](architecture.md)
 
 ## Context
 
-The assessment requires a customer and staff support-ticket product built from an empty repository. It must combine a Next.js user interface, an Express core API, MongoDB, an independent NestJS reporting service, and a server-side generative-AI integration. The system must remain usable when AI is unavailable and must defend role boundaries on the server.
+The product must support two journeys: public customers create, find, view, and reply to tickets; authenticated Agents and Admins manage assignment, status, SLA, conversations, audit history, AI summaries, and AI triage. The required stack includes Next.js, an Express API, MongoDB, a separate NestJS reporting service, Gemini integration, caching, tests, Docker, and CI.
+
+The design must prioritize server-enforced role separation, safe AI failure, clear service ownership, reproducible delivery, and enough operational maturity to explain how the system would evolve beyond a take-home implementation.
+
+## Decision drivers
+
+1. Customer, Agent, and Admin permissions must remain distinct and must not depend on hidden UI controls.
+2. Ticket writes and business invariants need one authoritative owner.
+3. Gemini must be server-only, bounded by timeout/rate limits, and unable to block core ticket work.
+4. Reporting must be independently deployable and read-mostly.
+5. Shared contracts should remain consistent without duplicating enums, validation, SLA, or transition rules.
+6. Local development and CI must exercise production-like service boundaries without unnecessary infrastructure.
 
 ## Decision
 
-The repository is a pnpm workspace with `apps/web`, `apps/api`, `services/reporting`, and `packages/shared`. The shared package owns stable enums, transport types, validation schemas, SLA values, and status-transition rules. Each deployable service has its own package, build configuration, health checks, and multi-stage image. This keeps local development simple while preserving deployment boundaries.
+Use a pnpm TypeScript monorepo with four explicit boundaries:
 
-The Express API owns all writes and business invariants. It creates human-readable ticket numbers, validates customer ownership, enforces state transitions, calculates SLA deadlines, records audit events, rotates refresh tokens, and mediates AI access. MongoDB transactions are avoided because the take-home environment may run a single-node MongoDB instance. Ticket-number generation uses an atomic counter document, while each business update uses one atomic ticket write.
+| Component            | Responsibility                                                                                 |
+| -------------------- | ---------------------------------------------------------------------------------------------- |
+| `apps/web`           | Next.js public portal and role-aware staff workspace                                           |
+| `apps/api`           | Express write service for authentication, tickets, SLA, audit, authorization, and AI mediation |
+| `services/reporting` | NestJS read-mostly aggregation API with Swagger and caching                                    |
+| `packages/shared`    | Shared enums, Zod schemas, SLA constants, state transitions, and transport types               |
 
-The NestJS service connects to the same database in read-mostly mode and exposes only report operations. Redis caches the collection-wide overview, per-agent performance, and date-bucket trend aggregations for 60, 120, and 300 seconds. The deadline-sensitive SLA attention queue remains uncached. A local TTL cache keeps reporting available when Redis is absent or disconnects, while readiness and report metadata expose which cache backend is active.
+The runtime shape is:
+
+```mermaid
+flowchart LR
+    Browser[Customer / Agent / Admin browser] --> Web[Next.js web]
+    Web -->|Public and staff REST| API[Express core API]
+    Web -->|Bearer-authenticated reports| Reports[NestJS reporting]
+    API -->|All writes| Mongo[(MongoDB)]
+    Reports -->|Read-mostly aggregations| Mongo
+    Reports -->|TTL cache| Redis[(Redis)]
+    API -->|Sanitized bounded prompts| Gemini[Gemini API]
+```
+
+The Express API is the only application writer to MongoDB. Reporting reads the same ticket collection to meet the brief, but it cannot mutate tickets. Redis contains disposable derived report data; MongoDB remains the system of record. Gemini is outside the platform trust boundary and receives only sanitized, bounded text.
+
+Within the core API, dependencies flow `route -> validation/auth middleware -> controller -> service -> model`. Routes declare HTTP and permission boundaries, controllers translate transport data, services enforce domain rules, and Mongoose models define persistence. React pages do not own authorization, SLA, or transition logic.
 
 ## Authentication and authorization
 
-Customers do not have accounts because the requested public journey is an email-only lookup. Every customer details and reply request supplies an email in the request body, and the API compares its normalized value with the stored ticket email before returning customer-safe data. Lookup is rate-limited. Email knowledge alone is deliberately documented as a take-home compromise; production should use a short-lived magic link or email OTP.
+Customers do not have accounts because the specified public journey uses email-only lookup. Details and reply requests carry normalized email in the request body. The API compares it with the stored ticket owner before accepting or returning data, returns the same not-found response for a mismatch, rate-limits lookup, and exposes only a customer-safe projection. Assignment, audit history, customer email, staff roles, and AI-review metadata never appear in public responses. This is a documented take-home compromise; production should use email OTP or magic links.
 
-Agent and Admin users authenticate with email and password. A signed access token lasts 15 minutes. A random refresh token lasts seven days, is stored only as a SHA-256 hash, and is sent in an HTTP-only, same-site cookie. Every refresh rotates the token. Reuse of a revoked token invalidates its token family. Logout revokes the presented token and clears the cookie.
+Agents and Admins authenticate with email/password. The API returns a signed 15-minute access token and a signed seven-day refresh token containing a random nonce, delivered in an HttpOnly, SameSite cookie. Only a SHA-256 refresh-token hash is stored. Refresh rotates the token; reuse of a revoked token invalidates its family. Logout revokes the presented token.
 
-Authorization is enforced in API guards and service methods. Agents can read, reply, change status, accept or reject AI suggestions, and take an unassigned ticket for themselves. Admins additionally reassign, delete, manage priority directly, and access SLA-breach reporting. Hiding controls in the interface is only a usability measure and never the security boundary.
+Every staff route verifies token signature, expiry, type, and role. Agents may work on their own or unassigned tickets and take an unassigned ticket for themselves. Admins additionally reassign, directly change priority, delete tickets, and access SLA-breach details. Service methods enforce assignment/resource rules after middleware establishes the broad role boundary.
 
-## AI integration and failure strategy
+## Data, state, and SLA
 
-The core API depends on an `AiProvider` interface rather than Gemini-specific behavior. The Gemini adapter uses a small structured prompt, redacts obvious credentials and payment-card-like sequences, limits input size, requests JSON where appropriate, and applies an eight-second timeout. API keys are read only by the server.
+Tickets embed conversations, audit events, and an optional AI recommendation because those records are read with the ticket and are acceptably bounded for this scope. Separate collections store staff users, hashed refresh sessions, and the atomic ticket-number counter. Indexes cover ticket number, customer email, assignment, SLA deadline, list filters, and search.
 
-Ticket creation succeeds before automatic triage is attempted. Triage stores a recommendation with `Pending Review`; it never changes actual priority. An Agent or Admin must accept it, or reject it and optionally choose another priority. Conversation summarization is an explicit staff action and stores a generated conversation entry with `aiGenerated` set to true.
+The shared package defines the only permitted state transitions: Open to In Progress/Closed; In Progress to Waiting for Customer/Resolved/Closed; Waiting for Customer to In Progress/Resolved; Resolved to Closed/In Progress; and none from Closed. The API rejects everything else. Customer replies reopen Waiting for Customer to In Progress; Closed tickets reject replies.
 
-Provider absence, invalid output, timeouts, rate limits, and network failures become a safe `AI_UNAVAILABLE` response. The ticket remains editable and the interface presents a retry action. There are no unbounded retries. AI routes have stricter request limits than general API routes. A deterministic mock adapter is available for test and development environments, and configuration validation prevents it from running when `NODE_ENV` is `production`.
+SLA deadlines are derived from creation time: Critical 4 hours, High 8 hours, Medium 24 hours, and Low 48 hours. Priority changes recalculate from the original creation timestamp. Breach status is derived from current time and non-terminal status instead of trusting a stale persisted flag.
 
-## Data and SLA decisions
+## AI integration and graceful degradation
 
-The public form defaults new tickets to Medium. SLA targets are Critical four hours, High eight hours, Medium 24 hours, and Low 48 hours. Changing a priority before resolution recalculates the deadline from creation time and records the decision. A ticket is breached when the deadline has passed and status is neither Resolved nor Closed. Responses derive this value from current time so stale persisted flags do not hide breaches; reporting uses the same rule in aggregation.
+The API depends on an `AiProvider` interface with Gemini, deterministic mock, and disabled adapters. The Gemini adapter strips HTML, redacts credential/card/secret-like values, bounds message count and size, requests structured output, validates responses, applies an eight-second timeout, and maps throttling, invalid output, network failure, and timeout to a safe `AI_UNAVAILABLE` response. AI routes use a stricter rate limit and the provider key never reaches the browser.
 
-Allowed transitions are Open to In Progress or Closed; In Progress to Waiting for Customer, Resolved, or Closed; Waiting for Customer to In Progress or Resolved; Resolved to Closed or In Progress; and no transition from Closed. Reopening a resolved ticket is supported, but reopening a closed ticket is an Admin workflow intentionally omitted.
+Ticket creation commits before automatic triage begins, so AI cannot prevent ticket creation. Triage remains `Pending Review` and cannot change priority without staff confirmation. Summarization is explicit, stored as AI-generated content, and replaces the previous generated summary. When AI fails, all ticket reads, replies, assignment, status, priority, and reporting remain available.
 
-## Accepted trade-offs
+## Reporting and caching
 
-Automatic triage runs in the API process after a successful write. A production system would place this work on a durable queue with idempotency, retry budgets, and dead-letter handling. Report caching uses short TTLs because the ticket API does not publish invalidation events. Customer verification is weaker than a production support portal. Staff access tokens are retained in browser session storage to survive a refresh; a production deployment should prefer a same-origin backend-for-frontend that keeps all tokens out of browser storage.
+The NestJS service validates the same access-token format and exposes overview, agent performance, SLA attention, trends, webhook preview, Swagger, and health endpoints. Redis caches overview for 60 seconds, agents for 120 seconds, and trends for 300 seconds per range. SLA attention remains uncached because its state changes with wall-clock time.
 
-MongoDB is shared by both services to match the brief. At higher scale the reporting service would use a read replica, materialized rollups, or change-stream-fed reporting store. Ticket deletion is a hard delete with a final structured log event; production compliance requirements may instead require soft deletion and retention policies.
+If Redis is unavailable, the service falls back to an in-process TTL cache and reports the active backend. This chooses availability with bounded staleness; a future event-driven design can provide stronger freshness.
 
-The first production improvements would be customer magic-link authentication, a durable AI job queue, secret management and key rotation, shared rate limiting, event-driven cache invalidation, database replica-set transactions, fine-grained observability, and security testing around ticket enumeration and refresh-token theft.
+## Consequences and accepted trade-offs
+
+- **Monorepo:** simplifies shared contracts and CI, but deployables share one lockfile and require disciplined package boundaries.
+- **Shared MongoDB:** meets the brief and avoids synchronization, but reporting schema changes must coordinate with the write service. At scale, use a read replica or materialized reporting store.
+- **In-process AI triage:** minimizes scope and never blocks ticket creation, but an unfinished job can be lost on process termination. Production needs a durable idempotent queue with retry budgets and dead-letter handling.
+- **TTL cache:** keeps design simple and resilient, but accepts bounded stale reports. Domain-event invalidation is the next step when freshness requires it.
+- **Session-storage access token:** works with the split API architecture, but a same-origin backend-for-frontend would better protect browser sessions.
+- **Hard deletion:** matches the Admin requirement, but production compliance may require soft deletion and an immutable audit store.
+- **No MongoDB transactions:** supports a single-node assessment environment. Replica-set transactions should be added when cross-document invariants require them.
+
+Alternatives rejected for this scope include separate service databases, a message broker, customer account management, event-driven cache invalidation, and a backend-for-frontend. Each adds valid production capability but would increase operational surface without improving the assessment's core workflows enough to justify it.
+
+## Delivery and verification
+
+Each deployable has a multi-stage Dockerfile. Docker Compose starts MongoDB, Redis, API, reporting, and web with dependency health checks. GitHub Actions performs frozen installation, formatting, linting, production dependency audit, builds, isolated tests, Playwright lifecycle E2E, and all three image builds. No paid AI service is called in CI.
+
+The detailed component ownership, trust boundaries, runtime flows, failure matrix, deployment topology, and requirement traceability are documented in [docs/architecture.md](architecture.md).
