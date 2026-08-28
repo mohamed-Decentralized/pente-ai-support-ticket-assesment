@@ -15,7 +15,9 @@ The implementation stays deliberately focused on the brief. It does not include 
 
 MongoDB is shared by the core and reporting services. The Express API owns all writes. Reporting is independently deployable, reads the same ticket collection, and uses Redis for shared aggregation caching.
 
-The complete decision record is [docs/adr.md](docs/adr.md).
+The concise decision record is [docs/adr.md](docs/adr.md), with component diagrams, trust
+boundaries, runtime flows, failure handling, and deployment details in
+[docs/architecture.md](docs/architecture.md).
 
 ## Requirement coverage
 
