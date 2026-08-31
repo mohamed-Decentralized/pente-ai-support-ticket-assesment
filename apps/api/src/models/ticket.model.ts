@@ -18,7 +18,7 @@ const auditSchema = new Schema(
     performedBy: { type: String, required: true },
     role: {
       type: String,
-      enum: [...Object.values(UserRole), 'Customer', 'System'],
+      enum: [...Object.values(AuthorType), 'System'],
       required: true,
     },
     field: { type: String },

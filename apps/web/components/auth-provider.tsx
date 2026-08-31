@@ -29,8 +29,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     window.addEventListener('pente-auth-expired', expireSession);
     const restore = async () => {
       const token = restoreAccessToken();
-      // If a fresh (non-expired) token is already in sessionStorage, decode the
-      // user from it directly — no network call needed.
       if (token && isAccessTokenFresh(token)) {
         const claims = decodeAccessToken(token);
         if (claims) {
@@ -44,7 +42,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return;
         }
       }
-      // Token missing, malformed, or within 60 s of expiry — call refresh.
+
       try {
         const session = await refreshSession();
         setUser(session.user);
