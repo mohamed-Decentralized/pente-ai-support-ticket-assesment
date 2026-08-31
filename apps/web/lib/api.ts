@@ -28,12 +28,10 @@ export const restoreAccessToken = () => {
   return accessToken;
 };
 
-/** Decode a JWT payload and return user claims + expiry. Returns null if malformed. */
 export const decodeAccessToken = (token: string) => {
   try {
     const payload = token.split('.')[1];
     if (!payload) return null;
-    // base64url → base64 → JSON
     const json = atob(payload.replace(/-/g, '+').replace(/_/g, '/'));
     const claims = JSON.parse(json) as {
       sub: string;
@@ -50,11 +48,10 @@ export const decodeAccessToken = (token: string) => {
   }
 };
 
-/** Returns true if the token is still valid with at least 60 seconds remaining. */
 export const isAccessTokenFresh = (token: string) => {
   const claims = decodeAccessToken(token);
   if (!claims) return false;
-  return claims.exp * 1000 > Date.now() + 60_000; // 60 s buffer
+  return claims.exp * 1000 > Date.now() + 60_000;
 };
 
 const notifyExpiredSession = () => {

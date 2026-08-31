@@ -2,11 +2,9 @@ FROM node:22-alpine AS dependencies
 WORKDIR /app
 RUN corepack enable
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
-COPY apps/api/package.json apps/api/package.json
 COPY apps/web/package.json apps/web/package.json
-COPY services/reporting/package.json services/reporting/package.json
 COPY packages/shared/package.json packages/shared/package.json
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile --filter @pente/web... --filter @pente/shared
 
 FROM dependencies AS build
 ARG NEXT_PUBLIC_API_URL=http://localhost:4000/api/v1

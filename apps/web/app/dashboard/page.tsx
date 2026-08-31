@@ -41,6 +41,7 @@ function DashboardContent() {
       setStats(nextStats);
       setTickets(nextTickets);
     } catch (caught) {
+      console.log('load_dashboard_error', caught);
       addToast(
         caught instanceof ApiError ? caught.message : 'Could not load the dashboard.',
         'error',
